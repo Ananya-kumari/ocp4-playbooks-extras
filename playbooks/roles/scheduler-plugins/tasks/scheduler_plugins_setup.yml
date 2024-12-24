@@ -1,0 +1,32 @@
+---
+- name: Create the scheduler-plugins namespace in Kubernetes
+  k8s:
+    kubeconfig: "{{ kubeconfig_path }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: scheduler-plugins
+
+- name: Switch to the scheduler-plugins project
+  command: oc project scheduler-plugins
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+
+- name: Clone the scheduler-plugins repository from GitHub
+  git:
+    repo: "{{ scheduler_plugins_repo }}"
+    dest: '/root/scheduler-plugins'
+    version: 'master'
+
+- name: Install scheduler-plugins Helm chart
+  command: helm upgrade --install scheduler-plugins --repo https://scheduler-plugins.sigs.k8s.io scheduler-plugins --namespace scheduler-plugins
+  args:
+    chdir: "{{ scheduler_plugins_chart_dir }}"
+
+- name: Update scheduler-plugins-scheduler image
+  command: kubectl set image deployment/scheduler-plugins-scheduler -n scheduler-plugins scheduler-plugins-scheduler={{ scheduler_image }}
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+

@@ -1,0 +1,49 @@
+---
+- name: Set OpenShift project to "scheduler-plugins"
+  command: oc project scheduler-plugins
+  register: project_output
+
+- name: Create PodGroup (po.yaml)
+  template:
+    src: "po.yaml.j2"
+    dest: "/root/po.yaml"
+
+- name: Apply PodGroup configuration
+  command: oc apply -f /root/po.yaml
+  register: podgroup_create_output
+
+- name: Verify PodGroup creation
+  command: oc get podgroup
+  register: podgroup_status
+  until: "'pg1' in podgroup_status.stdout"
+  retries: 5
+  delay: 10
+
+- name: Create Deployment (deploy.yaml)
+  template:
+    src: "deploy.yaml.j2"
+    dest: "/root/deploy.yaml"
+
+- name: Apply Deployment configuration
+  command: oc apply -f /root/deploy.yaml
+  register: deploy_create_output
+
+- name: Scale Deployment to 3 replicas
+  command: oc scale deploy pause --replicas=3
+  register: scale_output
+
+- name: Verify Pods are running
+  command: oc get po
+  register: pod_status
+  until: "'pause' in pod_status.stdout and 'Running' in pod_status.stdout"
+  retries: 5
+  delay: 10
+
+- name: Clean up temporary files
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /root/po.yaml
+    - /root/deploy.yaml
+
